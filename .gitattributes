@@ -1,0 +1,29 @@
+# 统一文本检出行尾，避免跨平台协作时产生无意义差异。
+* text=auto eol=lf
+
+# 版本与发布台账按固定行尾冻结，便于摘要校验。
+VERSION text eol=lf
+
+# 数据库迁移文件一旦应用即按原始字节维护，后续不得重写。
+backend/**/Migrations/**/*.cs text eol=lf
+backend/**/Migrations/**/*.sql text eol=lf
+
+# Windows 脚本保留 CRLF。
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制资源不参与行尾转换与文本差异。
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary

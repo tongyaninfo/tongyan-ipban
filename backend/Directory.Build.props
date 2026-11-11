@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <Deterministic>true</Deterministic>
+    <!-- 当前 SDK 自带的 Native AOT 编译器可能被 NuGet Audit 标记为已知漏洞；保留 NU1903 警告，避免把开发构建伪装成无风险。 -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1903</WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>

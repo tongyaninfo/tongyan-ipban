@@ -1,0 +1,50 @@
+通研 IPBan（Tongyan IPBan）
+Copyright 2026 tongyaninfo（通研信息）
+
+This product includes software developed by the tongyaninfo project.
+
+本项目以 Apache License 2.0 发布，完整许可文本见 LICENSE。产品官网：https://ipban.tongyaninfo.com/ ，
+通研官网：https://www.tongyaninfo.com/ 。
+
+===============================================================================
+第三方软件组件
+Third-Party Software Components
+===============================================================================
+
+后端与前端依赖的第三方库（.NET 10 运行时与 ASP.NET Core、SignalR、Microsoft.Data.Sqlite、
+MailKit、ModelContextProtocol C# SDK、Yitter.IdGenerator、React 19、Umi Max、Ant Design 6、
+Ant Design Pro 6.0.3 模板、Ant Design Charts、Biome、Vitest、xUnit 等）分别适用其各自的
+许可证。依赖清单与具体版本见 `backend/Directory.Packages.props`、
+`frontend/package-lock.json` 与各包元数据。
+
+- .NET 与 ASP.NET Core：MIT License
+- Microsoft.Data.Sqlite、MailKit、Yitter.IdGenerator：MIT License
+- ModelContextProtocol C# SDK：MIT License
+- React、Umi、Ant Design、Ant Design Pro、Ant Design Charts、Biome、Vitest：MIT License
+- SQLite：Public Domain
+
+管理台沿用 Ant Design Pro 模板的部分资产，模板许可文本随仓库保存在 `frontend/LICENSE`（MIT）。
+本项目对模板的修改同样以 Apache License 2.0 发布；第三方组件本身仍适用其原始许可证。
+
+===============================================================================
+数据与隐私提示
+Data and Privacy Notes
+===============================================================================
+
+本产品运行在受保护的 Windows 或 Linux 主机上，采集登录事件、来源 IP、网络连接、进程与
+防火墙处置结果。这些是安全处置所需的业务数据，可能关联真实的网络地址与主机信息。部署方
+应自行确定采集范围、访问权限、导出范围与保留期限，并遵守适用的隐私与合规要求。
+
+仓库中的示例配置、截图、测试夹具与演示数据均为合成内容（来源地址使用 RFC 5737 文档网段
+或 RFC 1918 私有网段示例），不含真实登录记录、真实名单、真实凭据或可定位个人与组织的
+网络信息。
+
+===============================================================================
+免责声明
+Disclaimer
+===============================================================================
+
+本项目按 Apache License 2.0 提供，不附带任何明示或默示担保。项目当前处于早期阶段，
+功能范围、接口与数据结构可能变化；截图与文档用于说明操作，不构成性能、容量或安全
+验收结论。封禁与防火墙处置具有中断业务的风险，部署方应在隔离环境验证后再用于生产，
+并自行确认目标主机的操作授权。

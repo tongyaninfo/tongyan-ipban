@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/IpBan.Agent/IpBan.Agent.csproj" />
+    <Project Path="src/IpBan.Api/IpBan.Api.csproj" />
+    <Project Path="src/IpBan.Engine/IpBan.Engine.csproj" />
+    <Project Path="src/IpBan.Shared/IpBan.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/IpBan.Api.Tests/IpBan.Api.Tests.csproj" />
+    <Project Path="tests/IpBan.Agent.Tests/IpBan.Agent.Tests.csproj" />
+    <Project Path="tests/IpBan.Engine.Tests/IpBan.Engine.Tests.csproj" />
+  </Folder>
+</Solution>

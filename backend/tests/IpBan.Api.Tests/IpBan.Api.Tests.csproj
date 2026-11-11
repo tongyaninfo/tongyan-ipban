@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <!-- 集成测试启动现有managed宿主；生产API的AOT发布设置保持不变。 -->
+    <ProjectReference Include="../../src/IpBan.Api/IpBan.Api.csproj"
+                      AdditionalProperties="PublishAot=false;PublishTrimmed=false;EnableAotAnalyzer=false;EnableTrimAnalyzer=false" />
+    <ProjectReference Include="../../src/IpBan.Agent/IpBan.Agent.csproj" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>
