@@ -1,0 +1,265 @@
+name: Release
+
+# 推送形如 v0.1.0 的 tag 后运行：先校验 tag 与根 VERSION 一致，再构建 Windows/Linux
+# 自包含发布包（API + Agent + 前端静态文件），生成 SHA256 校验和，汇总为草稿（draft）
+# Release，人工检查后手动发布。
+#
+# 产物：win-x64、win-arm64、linux-x64、linux-arm64 四种 RID 的自包含发布包。
+# 每个包内 api/ 为 HTTPS 管理台与 API（含 wwwroot 前端静态文件），agent/ 为高权限
+# 采集与防火墙 Agent。
+#
+# 发布形态为自包含托管发布（PublishAot=false）。csproj 默认开启 Native AOT，但 MCP
+# 管理面的 Delegate 路由在 AOT 分析下会报 IL2026/IL3050，AOT 制品待后续修复与验证，
+# 本次制品不包含 AOT 版本。
+#
+# 前置条件：仓库需允许 Actions 写权限
+# Settings → Actions → General → Workflow permissions → Read and write permissions
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: '24'
+
+jobs:
+  prepare:
+    name: 版本与 tag 校验
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 校验 tag 与 VERSION 一致
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          file_version="$(tr -d '[:space:]' < VERSION)"
+          if [ "$version" != "$file_version" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} 与 VERSION ${file_version} 不一致，请先更新 VERSION 或改用正确 tag"
+            exit 1
+          fi
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::tag 版本必须是不带前缀的稳定语义版本，例如 v0.1.0"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "版本校验通过：${version}"
+
+  frontend:
+    name: 前端静态产物
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: prepare
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 安装依赖
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: 构建前端
+        working-directory: frontend
+        run: npm run build
+
+      - name: 检查构建产物
+        run: test -f frontend/dist/index.html
+
+      - name: 上传前端产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  backend:
+    name: 自包含发布包（${{ matrix.rid }}）
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: [prepare, frontend]
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64, linux-x64, linux-arm64]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 .NET SDK（读取 global.json）
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: 下载前端产物
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: stage/frontend-dist
+
+      - name: 合并前端静态文件到 Api
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf backend/src/IpBan.Api/wwwroot
+          cp -R stage/frontend-dist backend/src/IpBan.Api/wwwroot
+          test -f backend/src/IpBan.Api/wwwroot/index.html
+
+      - name: 发布 Api 与 Agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.prepare.outputs.version }}"
+          rid="${{ matrix.rid }}"
+          common=(
+            --configuration Release
+            --runtime "$rid"
+            --self-contained true
+            -p:Version="$version"
+            -p:PublishAot=false
+            -p:EnableAotAnalyzer=false
+            -p:EnableTrimAnalyzer=false
+            -p:DebugType=None
+            -p:DebugSymbols=false
+          )
+          dotnet publish backend/src/IpBan.Api/IpBan.Api.csproj "${common[@]}" --output package/api
+          dotnet publish backend/src/IpBan.Agent/IpBan.Agent.csproj "${common[@]}" --output package/agent
+          test -f package/api/wwwroot/index.html
+          test -f package/api/appsettings.json
+          test -f package/agent/appsettings.json
+
+      - name: 生成运行说明
+        shell: bash
+        run: |
+          cat > package/运行说明.txt <<'TXT'
+          通研 IPBan 自包含发布包
+
+          目录：
+            api/    管理 API 与 HTTPS 管理台（含 wwwroot 前端静态文件）
+            agent/  登录采集、连接关联、SQLite 与防火墙处置 Agent
+
+          运行顺序：
+            1. 以 root、Administrator 或等价权限先启动 agent（首次启动自动创建 SQLite 并执行正向迁移）；
+            2. 再启动 api；api 与 agent 需使用相同的 Agent:DataDirectory 绝对路径，
+               以及相同的 Unix Socket 路径或 Named Pipe 名称；
+            3. 两个进程必须使用不同的 IdGeneration:WorkerId。
+
+          默认端口（api/appsettings.json 的 Management 段）：
+            HTTP 5180、HTTPS 8443；首次启动自动生成自签名证书。
+            首次打开管理台需完成初始化向导，创建首个管理员；系统不预置默认账号。
+
+          安全提示：
+            管理台默认监听 0.0.0.0，必须通过 HTTPS、网络隔离或来源白名单限制访问；
+            防火墙关闭或执行失败时只记录失败状态，不提供自动恢复或规则对账；
+            封禁会中断网络连接，请先在隔离主机验证后再用于生产。
+
+          完整说明见仓库 README、SECURITY.md 与 deploy/README.md。
+          TXT
+          ls -l package/运行说明.txt
+
+      - name: 打包
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.prepare.outputs.version }}"
+          rid="${{ matrix.rid }}"
+          dir="IpBan-${version}-${rid}"
+          mv package "$dir"
+          case "$rid" in
+            win-*) zip -qr "${dir}.zip" "$dir" ;;
+            *) tar -czf "${dir}.tar.gz" "$dir" ;;
+          esac
+          rm -rf "$dir"
+          ls -lh "IpBan-${version}-${rid}."
+
+      - name: 上传发布包
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.rid }}
+          path: IpBan-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.*
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: 生成草稿 Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [prepare, frontend, backend]
+    steps:
+      - name: 下载全部发布包
+        uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: artifacts
+
+      - name: 整理附件与校验和
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          cp artifacts/package-*/* release-assets/
+          (cd release-assets && sha256sum * > SHA256SUMS.txt)
+          ls -lh release-assets
+
+      - name: 创建草稿 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: v${{ needs.prepare.outputs.version }}
+          draft: true
+          fail_on_unmatched_files: true
+          files: release-assets/*
+          body: |
+            ## 通研 IPBan v${{ needs.prepare.outputs.version }}
+
+            本 Release 由 tag `${{ github.ref_name }}` 自动构建，当前为草稿状态，检查后手动发布。
+
+            ### 产物
+
+            - `IpBan-<版本>-win-x64.zip`、`IpBan-<版本>-win-arm64.zip`、`IpBan-<版本>-linux-x64.tar.gz`、`IpBan-<版本>-linux-arm64.tar.gz`：各 RID 的自包含发布包；
+            - 每个包内 `api/` 为 HTTPS 管理 API 与管理台静态文件，`agent/` 为采集与防火墙 Agent，`运行说明.txt` 说明启动顺序与默认配置；
+            - `SHA256SUMS.txt`：全部附件校验和。
+
+            发布形态为自包含托管发布，不包含 Native AOT 版本；AOT 制品待 MCP 路由的 AOT 分析问题修复后另行提供。
+
+            ### 运行说明
+
+            1. 解压后以 root、Administrator 或等价权限先启动 `agent/`，再启动 `api/`。
+            2. 两个进程使用相同的 `Agent:DataDirectory` 绝对路径与 IPC 路径/管道名，使用不同的 `IdGeneration:WorkerId`。
+            3. 默认 HTTP 5180、HTTPS 8443；首次打开管理台完成初始化向导创建管理员，系统不预置默认账号。
+            4. 管理台默认监听 0.0.0.0，必须通过 HTTPS、网络隔离或来源白名单限制访问。
+            5. 封禁与防火墙处置会中断网络连接，请先在隔离主机验证后再用于生产。
+
+            ### 校验
+
+            ```sh
+            sha256sum -c SHA256SUMS.txt
+            ```
+
+            Windows 可用 `certutil` 或解压工具自带校验。
+
+            ### 构建信息
+
+            - 提交：`${{ github.sha }}`
+            - 工作流：`.github/workflows/release.yml`

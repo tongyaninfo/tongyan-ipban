@@ -34,6 +34,8 @@ Thumbs.db
 **/.nuget/packages/
 
 # 前端构建、缓存与测试产物；生成目录与锁文件策略见 frontend/.gitignore
+# Api 的 wwwroot 由 npm run build:backend 或发布工作流生成，不提交。
+**/wwwroot/
 **/dist/
 **/dist-*/
 **/.umi/

@@ -71,6 +71,12 @@ node scripts/check-docs.mjs
 
 在隔离的 Windows 或 Linux 主机上运行时，为 API 和 Agent 配置相同的 `Agent:DataDirectory` 绝对路径及 Unix Socket 路径或 Named Pipe 名称，并使用不同的 WorkerId。先启动 Agent 初始化数据库，再启动 API。将 API 的静态目录指向前端构建产物可提供同源管理台，通过首次启动向导创建管理员。[后端运行说明](backend/README.md) · [前端开发说明](frontend/README.md) · [部署约定](deploy/README.md)
 
+## 发布制品
+
+推送形如 `v0.1.0` 的 tag 会触发 [Release 工作流](.github/workflows/release.yml)：校验 tag 与 `VERSION` 一致后，构建前端静态产物与 win-x64、win-arm64、linux-x64、linux-arm64 四种 RID 的自包含发布包（包内 `api/` 与 `agent/`），生成 `SHA256SUMS.txt` 并汇总为草稿 Release，人工检查后发布。
+
+制品为自包含托管发布，不包含 Native AOT 版本；AOT 制品待 MCP 管理面路由的 AOT 分析问题修复并验证后提供。产物内容、RID 矩阵与发布前检查见[版本与发布约定](docs/releases/README.md)。
+
 ## 参考文档
 
 - [项目目录规划](docs/项目目录规划.md)
