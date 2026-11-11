@@ -51,6 +51,9 @@ Thumbs.db
 # 运行数据、日志与本地状态；数据库、名单导入原件与备份不进入仓库
 **/App_Data/
 **/logs/
+# 业务页面目录与运行日志目录重名，保留前端源码；**/logs/ 只用于运行数据
+!frontend/src/pages/system/logs/
+!frontend/src/pages/system/logs/**
 **/run-data/
 **/imports/
 **/exports/
