@@ -152,7 +152,7 @@ jobs:
       - name: 生成运行说明
         shell: bash
         run: |
-          cat > package/运行说明.txt <<'TXT'
+          cat > package/RUNNING.txt <<'TXT'
           通研 IPBan 自包含发布包
 
           目录：
@@ -176,28 +176,56 @@ jobs:
 
           完整说明见仓库 README、SECURITY.md 与 deploy/README.md。
           TXT
-          ls -l package/运行说明.txt
+          ls -l package/RUNNING.txt
 
       - name: 打包
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           version="${{ needs.prepare.outputs.version }}"
           rid="${{ matrix.rid }}"
           dir="IpBan-${version}-${rid}"
-          mv package "$dir"
-          case "$rid" in
-            win-*) zip -qr "${dir}.zip" "$dir" ;;
-            *) tar -czf "${dir}.tar.gz" "$dir" ;;
-          esac
+          echo "version=[${version}] rid=[${rid}] dir=[${dir}]"
+          echo "::group::打包环境与目录检查"
+          echo "tar=$(command -v tar || echo 缺失) zip=$(command -v zip || echo 缺失)"
+          df -h . || true
+          ls -la package | head -20
+          echo "::endgroup::"
+          if ! mv package "$dir"; then
+            rc=$?
+            echo "::error::mv package 失败 rc=${rc}"
+            exit 1
+          fi
+          archive=""
+          if [[ "$rid" == win-* ]]; then
+            archive="${dir}.zip"
+            if ! zip -qr "$archive" "$dir"; then
+              rc=$?
+              echo "::error::zip 打包失败 rc=${rc}；若 runner 未预装 zip 需在步骤中安装"
+              exit 1
+            fi
+          else
+            archive="${dir}.tar.gz"
+            if ! tar -czf "$archive" -- "$dir"; then
+              rc=$?
+              echo "::error::tar 打包失败 rc=${rc}"
+              exit 1
+            fi
+          fi
+          if [ ! -f "$archive" ]; then
+            echo "::error::打包产物不存在：${archive}"
+            exit 1
+          fi
+          ls -lh "$archive"
           rm -rf "$dir"
-          ls -lh "IpBan-${version}-${rid}."
 
       - name: 上传发布包
         uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.rid }}
-          path: IpBan-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.*
+          path: |
+            IpBan-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip
+            IpBan-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.tar.gz
           if-no-files-found: error
           retention-days: 7
 
@@ -238,7 +266,7 @@ jobs:
             ### 产物
 
             - `IpBan-<版本>-win-x64.zip`、`IpBan-<版本>-win-arm64.zip`、`IpBan-<版本>-linux-x64.tar.gz`、`IpBan-<版本>-linux-arm64.tar.gz`：各 RID 的自包含发布包；
-            - 每个包内 `api/` 为 HTTPS 管理 API 与管理台静态文件，`agent/` 为采集与防火墙 Agent，`运行说明.txt` 说明启动顺序与默认配置；
+            - 每个包内 `api/` 为 HTTPS 管理 API 与管理台静态文件，`agent/` 为采集与防火墙 Agent，`RUNNING.txt` 说明启动顺序与默认配置；
             - `SHA256SUMS.txt`：全部附件校验和。
 
             发布形态为自包含托管发布，不包含 Native AOT 版本；AOT 制品待 MCP 路由的 AOT 分析问题修复后另行提供。
