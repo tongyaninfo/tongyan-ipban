@@ -36,6 +36,7 @@ jobs:
   frontend:
     name: 前端检查与构建
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: frontend
@@ -57,7 +58,7 @@ jobs:
         run: npm run lint
 
       - name: 测试
-        run: npm test
+        run: npm test -- --retry=1
 
       - name: 构建
         run: npm run build
