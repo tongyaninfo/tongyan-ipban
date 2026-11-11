@@ -1,8 +1,8 @@
 name: Release
 
 # 推送形如 v0.1.0 的 tag 后运行：先校验 tag 与根 VERSION 一致，再构建 Windows/Linux
-# 自包含发布包（API + Agent + 前端静态文件），生成 SHA256 校验和，汇总为草稿（draft）
-# Release，人工检查后手动发布。
+# 自包含发布包（API + Agent + 前端静态文件），生成 SHA256 校验和，汇总为正式（published）
+# Release。
 #
 # 产物：win-x64、win-arm64、linux-x64、linux-arm64 四种 RID 的自包含发布包。
 # 每个包内 api/ 为 HTTPS 管理台与 API（含 wwwroot 前端静态文件），agent/ 为高权限
@@ -250,18 +250,18 @@ jobs:
           (cd release-assets && sha256sum * > SHA256SUMS.txt)
           ls -lh release-assets
 
-      - name: 创建草稿 Release
+      - name: 创建正式 Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: v${{ needs.prepare.outputs.version }}
-          draft: true
+          draft: false
           fail_on_unmatched_files: true
           files: release-assets/*
           body: |
             ## 通研 IPBan v${{ needs.prepare.outputs.version }}
 
-            本 Release 由 tag `${{ github.ref_name }}` 自动构建，当前为草稿状态，检查后手动发布。
+            本 Release 由 tag `${{ github.ref_name }}` 自动构建并直接发布。
 
             ### 产物
 
