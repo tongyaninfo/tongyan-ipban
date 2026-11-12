@@ -1,20 +1,20 @@
 # 版本与发布
 
-本目录记录版本规则、发布清单、数据库升级和制品约定。当前源码版本为 0.1.0；首个 Release 由 GitHub Actions 在推送 `v0.1.0` tag 时构建为草稿，人工检查后发布。
+本目录记录版本规则、发布清单、数据库升级和制品约定。当前源码版本为 0.1.1；Release 由 GitHub Actions 在推送 `v*` tag 时构建并直接发布。
 
 ## 版本规则
 
-- 根 VERSION 是产品版本唯一来源，当前为 0.1.0。
+- 根 VERSION 是产品版本唯一来源，当前为 0.1.1。
 - CHANGELOG 面向使用者；开发依据、验证边界和范围调整在内部开发记录中维护，不随公开仓库发布。
 - 后端、前端和安装包版本从根版本投影，不各自维护另一套版本。
 - 数据库迁移编号独立记录，不能重写历史迁移。
 
 ## 自动化发布
 
-- 推送形如 `v0.1.0` 的 tag 触发 [Release 工作流](../../.github/workflows/release.yml)；工作流先校验 tag 与根 `VERSION` 一致，不一致直接失败。
+- 推送形如 `v0.1.1` 的 tag 触发 [Release 工作流](../../.github/workflows/release.yml)；工作流先校验 tag 与根 `VERSION` 一致，不一致直接失败。
 - 前端在 Ubuntu runner 上执行 `npm ci` 与 `npm run build`，产物合并到 `backend/src/IpBan.Api/wwwroot`。
 - 后端为 win-x64、win-arm64、linux-x64、linux-arm64 四种 RID 分别发布自包含包：`api/`（管理 API、HTTPS 管理台与前端静态文件）与 `agent/`（采集、SQLite 与防火墙 Agent），包内附 `运行说明.txt`。
-- 附件包含各 RID 的压缩包与 `SHA256SUMS.txt`；Release 默认创建为草稿，人工检查后手动发布。
+- 附件包含各 RID 的压缩包与 `SHA256SUMS.txt`；Release 直接发布为正式版本。
 - 制品形态为自包含托管发布（`PublishAot=false`）。csproj 默认开启 Native AOT，但 MCP 管理面的 Delegate 路由在 AOT 分析下触发 IL2026/IL3050，AOT 制品待问题修复并验证后再提供。
 
 ## 数据库启动和升级
@@ -52,4 +52,4 @@
 
 ## 当前状态
 
-首个 Release 由 `v0.1.0` tag 生成，包含四种 RID 的自包含发布包与校验和；草稿 Release 需要人工检查后发布。制品尚未在真实 Windows/Linux 主机完成全场景运行验收，具体边界见 CHANGELOG 与各实施方案。
+`v0.1.0` 与 `v0.1.1` 已发布，各包含四种 RID 的自包含发布包与校验和。`v0.1.1` 修复 Windows SYSTEM 登录触发邮件通知的问题。制品已在两台测试主机完成部署验证，真实主机全场景验收边界见 CHANGELOG 与各实施方案。
