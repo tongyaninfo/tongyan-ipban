@@ -19,10 +19,13 @@ namespace IpBan.Agent.Tests;
 /// <summary>只使用隔离 SQLite 和假防火墙，验证通知不会把历史重放当作新登录。</summary>
 public sealed class NotificationEventStoreTests
 {
-    [Fact]
-    public async Task HostLoginSuccessUsesNoticeAndFailureUsesEmergency()
+    [Theory]
+    [InlineData("synthetic-notification", "synthetic-user", 2)]
+    [InlineData("windows-eventlog:Security", "SYSTEM", 0)]
+    public async Task HostLoginSuccessUsesNoticeAndFailureUsesEmergency(string collector, string username, int expectedCandidates)
     {
         var fixture = await Fixture.CreateAsync();
+        await fixture.SetSettingsAsync(EnabledSettings());
         var directory = Path.GetDirectoryName(fixture.Factory.DatabasePath)!;
         var options = new FileLoggingOptions();
         using var fileLogger = new FileLoggerProvider(options, directory);
@@ -32,14 +35,61 @@ public sealed class NotificationEventStoreTests
         await using var provider = services.BuildServiceProvider();
         var logins = new SqliteLoginEventStore(fixture.Factory, provider.GetRequiredService<SyslogRuntime>());
 
-        await logins.AppendAsync(Login(1, DateTimeOffset.UtcNow, success: true));
-        await logins.AppendAsync(Login(2, DateTimeOffset.UtcNow));
+        await logins.AppendAsync(Login(1, DateTimeOffset.UtcNow, success: true) with { Collector = collector, Username = username });
+        await logins.AppendAsync(Login(2, DateTimeOffset.UtcNow) with { Collector = collector, Username = username });
 
         var logs = new FileLogStore(options, directory, fileLogger);
         var success = Assert.Single(logs.ReadLines(null, null, severity: 5, appName: "ipban-login"));
         var failure = Assert.Single(logs.ReadLines(null, null, severity: 0, appName: "ipban-login"));
         Assert.Contains("host.login.success", success, StringComparison.Ordinal);
         Assert.Contains("host.login.failure", failure, StringComparison.Ordinal);
+        Assert.Equal(2, await fixture.CountAsync("login_events"));
+        Assert.Equal(expectedCandidates, await fixture.CountAsync("notification_events"));
+    }
+
+    [Theory]
+    [InlineData("SYSTEM")]
+    [InlineData("system")]
+    [InlineData("  SyStEm \t")]
+    [InlineData(@"NT AUTHORITY\SYSTEM")]
+    [InlineData(@" nt authority\system ")]
+    public async Task WindowsSystemLoginKeepsEvidenceWithoutEmailCandidates(string username)
+    {
+        var fixture = await Fixture.CreateAsync();
+        await fixture.SetSettingsAsync(EnabledSettings());
+        long id = 0;
+        // 成功、失败以及有无远端地址均保留原始事件，仅抑制邮件候选。
+        foreach (var success in new[] { false, true })
+        foreach (var remoteIp in new string?[] { null, "192.0.2.10" })
+            await fixture.Logins.AppendAsync(Login(++id, DateTimeOffset.UtcNow, success) with
+            {
+                Collector = "WINDOWS-EVENTLOG:Security", Username = username, RemoteIp = remoteIp
+            });
+
+        Assert.Equal(4, await fixture.CountAsync("login_events"));
+        Assert.Empty(await fixture.ReadSnapshotsAsync());
+    }
+
+    [Theory]
+    [InlineData("windows-eventlog:Security", "Administrator")]
+    [InlineData("windows-eventlog:Security", @"DOMAIN\SYSTEM")]
+    [InlineData("windows-eventlog:Security", "SYSTEM-user")]
+    [InlineData("windows-eventlog:Security", "mySYSTEM")]
+    [InlineData("windows-eventlog:Security", null)]
+    [InlineData("linux-sshd-journald", "SYSTEM")]
+    [InlineData("linux-sshd-journald", "system")]
+    [InlineData("linux-tigervnc", "SYSTEM")]
+    public async Task OtherAccountsAndLinuxSystemNamesKeepEmailCandidates(string collector, string? username)
+    {
+        var fixture = await Fixture.CreateAsync();
+        await fixture.SetSettingsAsync(EnabledSettings());
+        await fixture.Logins.AppendAsync(Login(1, DateTimeOffset.UtcNow, success: true) with { Collector = collector, Username = username });
+        await fixture.Logins.AppendAsync(Login(2, DateTimeOffset.UtcNow) with { Collector = collector, Username = username });
+
+        Assert.Equal(2, await fixture.CountAsync("login_events"));
+        var snapshots = await fixture.ReadSnapshotsAsync();
+        Assert.Equal(["loginSuccess", "loginFailure"], snapshots.Select(item => item.EventType));
+        Assert.All(snapshots, item => Assert.Equal(username, item.Username));
     }
 
     [Fact]

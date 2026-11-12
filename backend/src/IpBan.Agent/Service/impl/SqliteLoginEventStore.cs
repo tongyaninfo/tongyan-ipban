@@ -57,9 +57,10 @@ public sealed class SqliteLoginEventStore(ISqliteConnectionFactory connectionFac
         Add(command, "$rawEventId", loginEvent.RawEventId);
         Add(command, "$evidenceSource", loginEvent.EvidenceSource);
         var inserted = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        if (inserted > 0)
+        if (inserted > 0 && !IsWindowsSystemLogin(loginEvent))
         {
             // 原始证据重放可能插入零行，只有本次新增事件才生成通知候选。
+            // SYSTEM 登录只抑制邮件；原始证据、策略统计和后续 Syslog 仍按原流程保留。
             var snapshot = new NotificationEventSnapshot(loginEvent.Success ? "loginSuccess" : "loginFailure",
                 loginEvent.Id.ToString(CultureInfo.InvariantCulture), Environment.MachineName, loginEvent.RemoteIp,
                 loginEvent.Protocol.ToString(), loginEvent.Username, loginEvent.OccurredAtUtc,
@@ -104,6 +105,17 @@ public sealed class SqliteLoginEventStore(ISqliteConnectionFactory connectionFac
         }
 
         return results;
+    }
+
+    private static bool IsWindowsSystemLogin(LoginEventContract loginEvent)
+    {
+        // 限定 Windows 采集来源，避免把 Linux 上名为 system 的普通用户一并静默。
+        if (!loginEvent.Collector.StartsWith("windows-eventlog:", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var username = loginEvent.Username?.Trim();
+        return string.Equals(username, "SYSTEM", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(username, @"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase);
     }
 
     private static LoginEventContract ReadEvent(SqliteDataReader reader) => new(

@@ -4,7 +4,9 @@
 
 ## [Unreleased]
 
-暂无。
+### 修复
+
+- Windows 采集：`SYSTEM` / `NT AUTHORITY\SYSTEM` 登录不再生成邮件通知候选，原始登录事件、策略统计与 Syslog 仍保留。
 
 ## [0.1.0] - 2026-11-11（公开首版，未封版）
 
